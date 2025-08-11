@@ -1,7 +1,15 @@
-import { FlatList, Text, View, StyleSheet, Image, TouchableOpacity, TextInput } from "react-native";
+import { FlatList, Text, View, StyleSheet, Image, TouchableOpacity, TextInput, KeyboardAvoidingView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from '@expo/vector-icons'
 import { Checkbox } from 'expo-checkbox'
+import { useState } from "react";
+
+type ToDoType = {
+  id: number;
+  title: string;
+  isDone: boolean
+}
+
 export default function Index() {
 
   const todoData = [
@@ -37,6 +45,20 @@ export default function Index() {
     },
   ];
 
+  const [todos, setTodos] = useState<ToDoType[]>(todoData);
+  const [todoText, setTodoText] = useState<string>('')
+
+  const addTodo = () => {
+    const newTodo = {
+      id: Math.random(),
+      title: todoText,
+      isDone: false
+    }
+
+    setTodos([newTodo,...todos]);
+    setTodoText('');
+  }
+
 
   return (
     <SafeAreaView style={styles.container}>
@@ -67,36 +89,46 @@ export default function Index() {
 
       {/*Todo list*/}
       <FlatList
-        data={todoData}
+        data={todos}
         keyExtractor={(item) => item.id.toString()}
         renderItem={(
           ({ item }) =>
-            <View style={styles.todoInfoContainer}>
-              {/* each item */}
-              <View style={styles.todoContainer}>
-                <Checkbox value={item.isDone} />
-                <Text style={[
-                  styles.todoText,
-                  item.isDone && { textDecorationLine: 'line-through' }
-                ]}>{item.title}</Text>
-              </View>
-              <TouchableOpacity onPress={() => alert('Deleted ' + item.id)}>
-                <Ionicons name="trash" size={24} color={'red'} />
-              </TouchableOpacity>
-            </View>
+            <TodoItem item={item} />
         )}
       />
 
       {/*Footer*/}
-      <View style={styles.footer}>
-        <TextInput placeholder='Add New Todo' style={styles.newTodoInput} />
-        <TouchableOpacity style={styles.addButton} onPress={() => { }}>
-          <Ionicons name="add" size={24} color={'#333'} />
+      <KeyboardAvoidingView style={styles.footer} behavior="padding" keyboardVerticalOffset={10}>
+        <TextInput
+          placeholder='Add New Todo'
+          style={styles.newTodoInput}
+          onChangeText={(text) => setTodoText(text)}
+          value={todoText}
+          autoCorrect={false}
+        />
+        <TouchableOpacity style={styles.addButton} onPress={() => addTodo()}>
+          <Ionicons name="add" size={34} color={'#fff'} />
         </TouchableOpacity>
-      </View>
+      </KeyboardAvoidingView>
     </SafeAreaView >
   );
 }
+
+const TodoItem = ({ item }: { item: ToDoType }) => (
+  <View style={styles.todoInfoContainer}>
+    {/* each item */}
+    <View style={styles.todoContainer}>
+      <Checkbox value={item.isDone} color={item.isDone ? '#4630EB' : 'black'} />
+      <Text style={[
+        styles.todoText,
+        item.isDone && { textDecorationLine: 'line-through' }
+      ]}>{item.title}</Text>
+    </View>
+    <TouchableOpacity onPress={() => alert('Deleted ' + item.id)}>
+      <Ionicons name="trash" size={24} color={'red'} />
+    </TouchableOpacity>
+  </View>
+)
 
 
 const styles = StyleSheet.create({
@@ -145,7 +177,8 @@ const styles = StyleSheet.create({
   footer: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between'
+    justifyContent: 'space-between',
+    marginTop: 10
   },
   newTodoInput: {
     flex: 1,
