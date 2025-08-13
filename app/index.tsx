@@ -1,8 +1,10 @@
-import { FlatList, Text, View, StyleSheet, Image, TouchableOpacity, TextInput, KeyboardAvoidingView } from "react-native";
+import { FlatList, Text, View, StyleSheet, Image, TouchableOpacity, TextInput, KeyboardAvoidingView, Keyboard } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from '@expo/vector-icons'
 import { Checkbox } from 'expo-checkbox'
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import React from "react";
 
 type ToDoType = {
   id: number;
@@ -12,52 +14,93 @@ type ToDoType = {
 
 export default function Index() {
 
-  const todoData = [
-    {
-      id: 1,
-      title: "Todo 1",
-      isDone: false,
-    },
-    {
-      id: 2,
-      title: "Todo 2",
-      isDone: false,
-    },
-    {
-      id: 3,
-      title: "Todo 3",
-      isDone: false,
-    },
-    {
-      id: 4,
-      title: "Todo 4",
-      isDone: true,
-    },
-    {
-      id: 5,
-      title: "Todo 5",
-      isDone: false,
-    },
-    {
-      id: 6,
-      title: "Todo 6",
-      isDone: false,
-    },
-  ];
+  const [todos, setTodos] = useState<ToDoType[]>([]);
+  const [todoText, setTodoText] = useState<string>('');
+  const [searchText, setSearchText] = useState<string>('');
+  const [oldTodo, setOldTodo] = useState<ToDoType[]>([]);
 
-  const [todos, setTodos] = useState<ToDoType[]>(todoData);
-  const [todoText, setTodoText] = useState<string>('')
+  useEffect(() => {
+    const loadTodos = async () => {
+      try {
+        // await AsyncStorage.clear()
+        const fetchedTodo = await AsyncStorage.getItem('my-todo');
+        if (fetchedTodo) {
+          setTodos(JSON.parse(fetchedTodo))
+          setOldTodo(JSON.parse(fetchedTodo))
+        }
 
-  const addTodo = () => {
-    const newTodo = {
-      id: Math.random(),
-      title: todoText,
-      isDone: false
+      } catch (error) {
+        console.log(error)
+      }
     }
 
-    setTodos([newTodo,...todos]);
-    setTodoText('');
+    loadTodos();
+  }, [])
+
+  const addTodo = async () => {
+    try {
+      if (todoText.trim() == "") {
+        alert('Enter todo first');
+        return;
+      }
+
+      const newTodo = {
+        id: Math.random(),
+        title: todoText,
+        isDone: false
+      }
+
+      const updatedTodos = [newTodo, ...todos]
+      setTodos(updatedTodos);
+      setOldTodo(updatedTodos);
+      await AsyncStorage.setItem('my-todo', JSON.stringify(updatedTodos));
+      setTodoText('');
+      Keyboard.dismiss();
+    } catch (error) {
+      console.log(error)
+    }
   }
+
+  const deleteTodo = async (id: number) => {
+    try {
+      const updatedTodos = todos.filter((item) => item.id != id);
+      setTodos(updatedTodos);
+      setOldTodo(updatedTodos)
+      await AsyncStorage.setItem('my-todo', JSON.stringify(updatedTodos))
+    } catch (error) {
+      console.log(error);
+    }
+  }
+
+  const handleIsDone = async (id: number) => {
+    try {
+      const updatedTodos = todos.map((item) =>
+        item.id === id ? { ...item, isDone: !item.isDone } : item
+      )
+      setTodos(updatedTodos);
+      setOldTodo(updatedTodos);
+      await AsyncStorage.setItem('my-todo', JSON.stringify(updatedTodos))
+
+    } catch (error) {
+      console.log(error)
+    }
+  }
+
+  const onSearch = (query: string) => {
+    if (!query.trim()) {
+      setTodos(oldTodo)
+    } else {
+      const filteredTodos = todos.filter((todo) =>
+        todo.title.toLowerCase().includes(query.toLowerCase())
+      );
+      setTodos(filteredTodos);
+    }
+
+  }
+
+  useEffect(() => {
+    onSearch(searchText)
+  }, [searchText])
 
 
   return (
@@ -83,8 +126,12 @@ export default function Index() {
         <TextInput
           placeholder="Search"
           style={styles.searchInput}
-          clearButtonMode="always"
+          value={searchText}
+          onChangeText={(text) => setSearchText(text)}
         />
+        <TouchableOpacity style={styles.closeButton} onPress={() => setSearchText('')}>
+          <Ionicons name="close" size={24} color={'#333'} />
+        </TouchableOpacity>
       </View>
 
       {/*Todo list*/}
@@ -93,7 +140,7 @@ export default function Index() {
         keyExtractor={(item) => item.id.toString()}
         renderItem={(
           ({ item }) =>
-            <TodoItem item={item} />
+            <TodoItem item={item} deleteItem={deleteTodo} handleIsDone={handleIsDone} />
         )}
       />
 
@@ -114,17 +161,26 @@ export default function Index() {
   );
 }
 
-const TodoItem = ({ item }: { item: ToDoType }) => (
+const TodoItem = ({ item, deleteItem, handleIsDone }
+  : {
+    item: ToDoType,
+    deleteItem: (id: number) => void,
+    handleIsDone: (id: number) => void
+  }
+) => (
   <View style={styles.todoInfoContainer}>
     {/* each item */}
     <View style={styles.todoContainer}>
-      <Checkbox value={item.isDone} color={item.isDone ? '#4630EB' : 'black'} />
+      <Checkbox value={item.isDone} color={item.isDone ? '#4630EB' : 'black'} onValueChange={() => handleIsDone(item.id)} />
       <Text style={[
         styles.todoText,
         item.isDone && { textDecorationLine: 'line-through' }
       ]}>{item.title}</Text>
     </View>
-    <TouchableOpacity onPress={() => alert('Deleted ' + item.id)}>
+    <TouchableOpacity onPress={() => {
+      deleteItem(item.id);
+      alert('Deleted ' + item.id)
+    }}>
       <Ionicons name="trash" size={24} color={'red'} />
     </TouchableOpacity>
   </View>
@@ -150,7 +206,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     gap: 10,
     alignItems: 'center',
-    marginBottom: 10
+    marginBottom: 10,
   },
   searchInput: {
     flex: 1,
@@ -175,10 +231,11 @@ const styles = StyleSheet.create({
     color: '#333'
   },
   footer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 10
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 10,
+    bottom: 20
   },
   newTodoInput: {
     flex: 1,
@@ -189,9 +246,12 @@ const styles = StyleSheet.create({
     color: '#333'
   },
   addButton: {
-    backgroundColor: '#4630EB',
+    backgroundColor: "#4630EB",
     padding: 8,
     borderRadius: 10,
-    marginLeft: 20
+    marginLeft: 20,
+  },
+  closeButton: {
+    marginRight: 5
   }
 })
